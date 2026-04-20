@@ -73,3 +73,37 @@ output "application_insights_connection_string" {
   value       = azurerm_application_insights.main.connection_string
   sensitive   = true
 }
+
+# ---------------------------------------------------------------------------
+# Azure AI Foundry
+# ---------------------------------------------------------------------------
+
+output "ai_services_name" {
+  description = "Azure AI Services account name."
+  value       = azurerm_ai_services.main.name
+}
+
+output "ai_services_endpoint" {
+  description = "Azure AI Services endpoint (used for OpenAI API calls)."
+  value       = azurerm_ai_services.main.endpoint
+}
+
+output "ai_foundry_name" {
+  description = "Azure AI Foundry hub name."
+  value       = azurerm_ai_foundry.main.name
+}
+
+output "ai_foundry_project_name" {
+  description = "Azure AI Foundry project name."
+  value       = azurerm_ai_foundry_project.main.name
+}
+
+output "chat_deployment_name" {
+  description = "Chat model deployment name."
+  value       = azurerm_cognitive_deployment.chat.name
+}
+
+output "embedding_deployment_name" {
+  description = "Embedding model deployment name."
+  value       = azurerm_cognitive_deployment.embedding.name
+}

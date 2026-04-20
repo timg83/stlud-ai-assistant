@@ -43,6 +43,9 @@ locals {
   key_vault_name          = substr("kv-${local.application_name}-${random_string.resource_suffix.result}", 0, 24)
   log_analytics_name      = "log-${local.application_name}"
   app_insights_name       = "appi-${local.application_name}"
+  ai_services_name        = "ais-${local.application_name}-${random_string.resource_suffix.result}"
+  ai_foundry_name         = "aihub-${local.application_name}"
+  ai_project_name         = "aiproj-${local.application_name}"
 
   frontend_origin           = trimsuffix(azurerm_storage_account.main.primary_web_endpoint, "/")
   effective_allowed_origins = distinct(concat(var.allowed_origins, [local.frontend_origin]))
@@ -157,6 +160,80 @@ resource "azurerm_key_vault" "main" {
   tags                          = local.tags
 }
 
+# ---------------------------------------------------------------------------
+# Azure AI Foundry – AI Services account, hub, project & model deployments
+# ---------------------------------------------------------------------------
+
+resource "azurerm_ai_services" "main" {
+  name                         = local.ai_services_name
+  location                     = azurerm_resource_group.main.location
+  resource_group_name          = azurerm_resource_group.main.name
+  sku_name                     = var.ai_services_sku
+  custom_subdomain_name        = local.ai_services_name
+  local_authentication_enabled = true
+  public_network_access        = "Enabled"
+  tags                         = local.tags
+}
+
+resource "azurerm_ai_foundry" "main" {
+  name                    = local.ai_foundry_name
+  location                = azurerm_resource_group.main.location
+  resource_group_name     = azurerm_resource_group.main.name
+  storage_account_id      = azurerm_storage_account.main.id
+  key_vault_id            = azurerm_key_vault.main.id
+  application_insights_id = azurerm_application_insights.main.id
+
+  identity {
+    type = "SystemAssigned"
+  }
+
+  tags = local.tags
+}
+
+resource "azurerm_ai_foundry_project" "main" {
+  name               = local.ai_project_name
+  location           = azurerm_resource_group.main.location
+  ai_services_hub_id = azurerm_ai_foundry.main.id
+
+  identity {
+    type = "SystemAssigned"
+  }
+
+  tags = local.tags
+}
+
+resource "azurerm_cognitive_deployment" "chat" {
+  name                 = var.chat_model_deployment_name
+  cognitive_account_id = azurerm_ai_services.main.id
+
+  model {
+    format  = "OpenAI"
+    name    = var.chat_model_name
+    version = var.chat_model_version
+  }
+
+  sku {
+    name     = "Standard"
+    capacity = var.chat_model_capacity
+  }
+}
+
+resource "azurerm_cognitive_deployment" "embedding" {
+  name                 = var.embedding_model_deployment_name
+  cognitive_account_id = azurerm_ai_services.main.id
+
+  model {
+    format  = "OpenAI"
+    name    = var.embedding_model_name
+    version = var.embedding_model_version
+  }
+
+  sku {
+    name     = "Standard"
+    capacity = var.embedding_model_capacity
+  }
+}
+
 resource "azurerm_container_registry" "main" {
   name                = local.container_registry_name
   location            = azurerm_resource_group.main.location
@@ -246,17 +323,17 @@ resource "azurerm_container_app" "backend" {
 
       env {
         name  = "AzureOpenAi__Endpoint"
-        value = var.azure_openai_endpoint
+        value = azurerm_ai_services.main.endpoint
       }
 
       env {
         name  = "AzureOpenAi__ChatDeployment"
-        value = var.azure_openai_chat_deployment
+        value = azurerm_cognitive_deployment.chat.name
       }
 
       env {
         name  = "AzureOpenAi__EmbeddingDeployment"
-        value = var.azure_openai_embedding_deployment
+        value = azurerm_cognitive_deployment.embedding.name
       }
 
       env {
@@ -338,5 +415,23 @@ resource "azurerm_role_assignment" "app_storage_blob_contributor" {
 resource "azurerm_role_assignment" "app_acr_pull" {
   scope                = azurerm_container_registry.main.id
   role_definition_name = "AcrPull"
+  principal_id         = azurerm_container_app.backend.identity[0].principal_id
+}
+
+resource "azurerm_role_assignment" "app_cognitive_services_user" {
+  scope                = azurerm_ai_services.main.id
+  role_definition_name = "Cognitive Services OpenAI User"
+  principal_id         = azurerm_container_app.backend.identity[0].principal_id
+}
+
+resource "azurerm_role_assignment" "app_search_index_reader" {
+  scope                = azurerm_search_service.main.id
+  role_definition_name = "Search Index Data Reader"
+  principal_id         = azurerm_container_app.backend.identity[0].principal_id
+}
+
+resource "azurerm_role_assignment" "app_cosmosdb_contributor" {
+  scope                = azurerm_cosmosdb_account.main.id
+  role_definition_name = "Cosmos DB Built-in Data Contributor"
   principal_id         = azurerm_container_app.backend.identity[0].principal_id
 }

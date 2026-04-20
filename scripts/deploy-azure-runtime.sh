@@ -36,6 +36,11 @@ terraform -chdir="$TF_DIR" apply -auto-approve \
   -target=azurerm_cosmosdb_sql_database.main \
   -target=azurerm_search_service.main \
   -target=azurerm_key_vault.main \
+  -target=azurerm_ai_services.main \
+  -target=azurerm_ai_foundry.main \
+  -target=azurerm_ai_foundry_project.main \
+  -target=azurerm_cognitive_deployment.chat \
+  -target=azurerm_cognitive_deployment.embedding \
   -target=azurerm_container_registry.main \
   -target=azurerm_container_app_environment.main
 

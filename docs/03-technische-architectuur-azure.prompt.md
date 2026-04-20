@@ -1,22 +1,24 @@
-## Technische Architectuur (Azure-voorkeur)
+## Technische Architectuur (Azure)
 
-### Voorgestelde Services
+### Services
 
 1. Frontend
 
 - Bestaande schoolwebsite plus ingesloten chatwidget (JavaScript snippet).
+- Widget wordt gehost als static website op Azure Storage.
 
 2. Backend/API
 
-- Azure App Service of Azure Container Apps voor Chat API en beheer-API.
+- Azure Container Apps voor Chat API en beheer-API.
 
-3. LLM
+3. AI Platform
 
-- Azure OpenAI voor antwoordgeneratie en embeddings.
+- Azure AI Foundry (hub + project) met Azure AI Services.
+- Modeldeployments (chat en embedding) via Terraform geprovisioned.
 
 4. Search/Index
 
-- Azure AI Search voor hybride retrieval.
+- Azure AI Search voor hybride retrieval (keyword + vector).
 
 5. Storage
 
@@ -24,15 +26,15 @@
 
 6. Metadata en transactiegegevens
 
-- Azure SQL of Cosmos DB voor contentstatus, gebruikersacties, workflow.
+- Azure Cosmos DB (SQL API) voor contentstatus, chattraces, workflow.
 
 7. Secrets en identiteiten
 
-- Azure Key Vault plus Managed Identities.
+- Azure Key Vault plus Managed Identities voor service-to-service authenticatie.
 
 8. Monitoring
 
-- Application Insights plus Log Analytics.
+- Application Insights plus Log Analytics, geïntegreerd via AI Foundry hub.
 
 ### Deployments en Omgevingen
 

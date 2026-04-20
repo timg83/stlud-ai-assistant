@@ -29,18 +29,6 @@ variable "tags" {
   }
 }
 
-variable "app_service_sku_name" {
-  type        = string
-  description = "Deprecated App Service SKU kept for backward compatibility."
-  default     = "B1"
-}
-
-variable "app_service_dotnet_version" {
-  type        = string
-  description = "Deprecated App Service runtime setting kept for backward compatibility."
-  default     = "10.0"
-}
-
 variable "aspnetcore_environment" {
   type        = string
   description = "ASPNETCORE_ENVIRONMENT value for the backend app."
@@ -155,22 +143,58 @@ variable "log_retention_in_days" {
   default     = 30
 }
 
-variable "azure_openai_endpoint" {
+variable "ai_services_sku" {
   type        = string
-  description = "Endpoint of an existing Azure OpenAI resource."
-  default     = ""
+  description = "SKU for Azure AI Services account."
+  default     = "S0"
 }
 
-variable "azure_openai_chat_deployment" {
+variable "chat_model_deployment_name" {
   type        = string
-  description = "Azure OpenAI chat deployment name."
-  default     = ""
+  description = "Deployment name for the chat model in AI Services."
+  default     = "gpt-4o-mini"
 }
 
-variable "azure_openai_embedding_deployment" {
+variable "chat_model_name" {
   type        = string
-  description = "Azure OpenAI embedding deployment name."
-  default     = ""
+  description = "OpenAI chat model name."
+  default     = "gpt-4o-mini"
+}
+
+variable "chat_model_version" {
+  type        = string
+  description = "OpenAI chat model version."
+  default     = "2024-07-18"
+}
+
+variable "chat_model_capacity" {
+  type        = number
+  description = "Token-per-minute capacity (in thousands) for the chat model."
+  default     = 10
+}
+
+variable "embedding_model_deployment_name" {
+  type        = string
+  description = "Deployment name for the embedding model in AI Services."
+  default     = "text-embedding-3-large"
+}
+
+variable "embedding_model_name" {
+  type        = string
+  description = "OpenAI embedding model name."
+  default     = "text-embedding-3-large"
+}
+
+variable "embedding_model_version" {
+  type        = string
+  description = "OpenAI embedding model version."
+  default     = "1"
+}
+
+variable "embedding_model_capacity" {
+  type        = number
+  description = "Token-per-minute capacity (in thousands) for the embedding model."
+  default     = 10
 }
 
 variable "allowed_origins" {

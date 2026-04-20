@@ -1,11 +1,14 @@
 # Terraform
 
-Deze map bevat een Azure-baseline voor de MVP-infrastructuur uit de ADR's, met een alternatief runtimepad zonder Azure App Service.
+Deze map bevat de volledige Azure-infrastructuur voor de MVP, inclusief Azure AI Foundry voor het AI-platform.
 
 ## Wat wordt aangemaakt
 
 - Resource group
 - Log Analytics workspace en Application Insights
+- **Azure AI Services** account met OpenAI-modeldeployments (chat + embedding)
+- **Azure AI Foundry** hub (verbindt Storage, Key Vault en Application Insights)
+- **Azure AI Foundry Project** als teamworkspace
 - Azure Container Registry voor backend images
 - Azure Container Apps environment en Container App voor de backend
 - Storage account en private blob container voor brondocumenten
@@ -13,10 +16,7 @@ Deze map bevat een Azure-baseline voor de MVP-infrastructuur uit de ADR's, met e
 - Cosmos DB account en SQL database voor metadata en workflowstatus
 - Azure AI Search service
 - Key Vault met RBAC ingeschakeld
-- Managed identity op de backend-container met basisrechten op Key Vault, Blob Storage en ACR pull
-- Applicatieconfiguratie voor de huidige ASP.NET Core backend
-
-Azure OpenAI wordt in deze baseline niet automatisch geprovisioned. De applicatie krijgt daarvoor configuratievelden mee, zodat je een bestaand Azure OpenAI endpoint en deploymentnamen kunt invullen.
+- Managed identity op de backend-container met RBAC-rechten op Key Vault, Blob Storage, ACR pull, Cognitive Services OpenAI, AI Search en Cosmos DB
 
 ## Gebruik
 
@@ -52,9 +52,9 @@ Deployen van backend-image en frontend-build:
 - `name_prefix`: korte naam voor alle resources, bijvoorbeeld `schoolai`
 - `environment`: bijvoorbeeld `dev`, `test` of `prod`
 - `location`: Azure-regio, standaard `westeurope`
-- `azure_openai_endpoint`: endpoint van een bestaand Azure OpenAI account
-- `azure_openai_chat_deployment`: deploymentnaam voor chat
-- `azure_openai_embedding_deployment`: deploymentnaam voor embeddings
+- `chat_model_name` / `chat_model_version`: OpenAI-chatmodel en versie
+- `embedding_model_name` / `embedding_model_version`: OpenAI-embeddingmodel en versie
+- `chat_model_capacity` / `embedding_model_capacity`: TPM-capaciteit (in duizendtallen)
 - `allowed_origins`: extra widget-origins voor CORS naast de automatisch gegenereerde static website URL
 - `backend_image_tag`: image tag voor de backend container
 
