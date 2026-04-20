@@ -1,9 +1,24 @@
 using System.Threading.RateLimiting;
+using Microsoft.AspNetCore.RateLimiting;
 using SchoolAssistant.Api.Contracts;
 using SchoolAssistant.Api.Options;
 using SchoolAssistant.Api.Services;
 
 var builder = WebApplication.CreateBuilder(args);
+
+static string[] ReadIndexedSectionValues(IConfigurationSection parentSection, string sectionName, string[] fallback)
+{
+    var values = parentSection
+        .AsEnumerable()
+        .Where(entry =>
+            entry.Key.StartsWith($"{parentSection.Path}:{sectionName}:", StringComparison.OrdinalIgnoreCase) &&
+            !string.IsNullOrWhiteSpace(entry.Value))
+        .Select(entry => entry.Value!)
+        .Distinct(StringComparer.OrdinalIgnoreCase)
+        .ToArray();
+
+    return values.Length > 0 ? values : fallback;
+}
 
 builder.Services.Configure<AzureOpenAiOptions>(builder.Configuration.GetSection("AzureOpenAi"));
 builder.Services.Configure<AzureAiSearchOptions>(builder.Configuration.GetSection("AzureAiSearch"));
@@ -16,8 +31,8 @@ var permitLimit = rateLimitingSection.GetValue<int>("PermitLimit", 20);
 var windowSeconds = rateLimitingSection.GetValue<int>("WindowSeconds", 60);
 var queueLimit = rateLimitingSection.GetValue<int>("QueueLimit", 0);
 var widgetSecuritySection = builder.Configuration.GetSection("WidgetSecurity");
-var allowedOrigins = widgetSecuritySection.GetSection("AllowedOrigins").Get<string[]>() ?? [];
-var allowedLocales = widgetSecuritySection.GetSection("AllowedLocales").Get<string[]>() ?? ["nl-NL", "en-US", "en-GB"];
+var allowedOrigins = ReadIndexedSectionValues(widgetSecuritySection, "AllowedOrigins", []);
+var allowedLocales = ReadIndexedSectionValues(widgetSecuritySection, "AllowedLocales", ["nl-NL", "en-US", "en-GB"]);
 var maxQuestionLength = widgetSecuritySection.GetValue<int>("MaxQuestionLength", 1000);
 
 builder.Services.AddRateLimiter(options =>

@@ -17,3 +17,4 @@ Deze map bevat de Architecture Decision Records voor alle expliciet gekozen arch
 13. [0013-restrict-answers-to-approved-published-sources.md](0013-restrict-answers-to-approved-published-sources.md)
 14. [0014-support-dutch-and-english-in-mvp.md](0014-support-dutch-and-english-in-mvp.md)
 15. [0015-use-key-vault-managed-identity-and-application-insights.md](0015-use-key-vault-managed-identity-and-application-insights.md)
+16. [0016-host-runtime-on-container-apps-and-static-website.md](0016-host-runtime-on-container-apps-and-static-website.md)
