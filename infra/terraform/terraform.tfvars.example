@@ -1,0 +1,9 @@
+name_prefix                    = "schoolai"
+environment                    = "dev"
+location                       = "westeurope"
+search_sku                     = "basic"
+backend_image_tag              = "latest"
+allowed_origins                = ["http://localhost:5173", "https://school.example.nl"]
+azure_openai_endpoint          = "https://your-openai-resource.openai.azure.com/"
+azure_openai_chat_deployment   = "gpt-4o-mini"
+azure_openai_embedding_deployment = "text-embedding-3-large"
