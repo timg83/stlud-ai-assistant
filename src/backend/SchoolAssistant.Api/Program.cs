@@ -1,4 +1,10 @@
 using System.Threading.RateLimiting;
+using Azure;
+using Azure.AI.OpenAI;
+using Azure.Identity;
+using Azure.Search.Documents;
+using Azure.Search.Documents.Indexes;
+using Azure.Storage.Blobs;
 using Microsoft.AspNetCore.RateLimiting;
 using SchoolAssistant.Api.Contracts;
 using SchoolAssistant.Api.Options;
@@ -63,6 +69,61 @@ builder.Services.AddCors(options =>
 builder.Services.AddSingleton<IChatOrchestrator, InMemoryChatOrchestrator>();
 builder.Services.AddSingleton<IContentService, InMemoryContentService>();
 builder.Services.AddSingleton<IReviewService, InMemoryReviewService>();
+
+// --- Azure SDK clients (used when endpoints are configured) ---
+var azureOpenAiEndpoint = builder.Configuration["AzureOpenAi:Endpoint"];
+var azureSearchEndpoint = builder.Configuration["AzureAiSearch:Endpoint"];
+var azureSearchIndexName = builder.Configuration["AzureAiSearch:IndexName"] ?? "school-assistant-index";
+var blobStorageConnectionString = builder.Configuration["BlobStorage:ConnectionString"];
+var blobContainerName = builder.Configuration["BlobStorage:ContainerName"] ?? "source-documents";
+var storageAccountName = builder.Configuration["BlobStorage:AccountName"];
+
+var credential = new DefaultAzureCredential();
+
+if (!string.IsNullOrWhiteSpace(azureOpenAiEndpoint) && !string.IsNullOrWhiteSpace(azureSearchEndpoint))
+{
+    // Azure OpenAI client
+    builder.Services.AddSingleton(_ => new AzureOpenAIClient(new Uri(azureOpenAiEndpoint), credential));
+
+    // Azure AI Search clients
+    builder.Services.AddSingleton(_ => new SearchIndexClient(new Uri(azureSearchEndpoint), credential));
+    builder.Services.AddSingleton(sp =>
+    {
+        var indexClient = sp.GetRequiredService<SearchIndexClient>();
+        return indexClient.GetSearchClient(azureSearchIndexName);
+    });
+
+    // Blob Storage client
+    if (!string.IsNullOrWhiteSpace(blobStorageConnectionString))
+    {
+        builder.Services.AddSingleton(_ => new BlobServiceClient(blobStorageConnectionString).GetBlobContainerClient(blobContainerName));
+    }
+    else
+    {
+        var blobUri = !string.IsNullOrWhiteSpace(storageAccountName)
+            ? new Uri($"https://{storageAccountName}.blob.core.windows.net")
+            : null;
+
+        if (blobUri != null)
+        {
+            builder.Services.AddSingleton(_ => new BlobServiceClient(blobUri, credential).GetBlobContainerClient(blobContainerName));
+        }
+        else
+        {
+            // Fallback: try to derive from AzureAiSearch or use environment
+            builder.Services.AddSingleton(_ => new BlobServiceClient("UseDevelopmentStorage=true").GetBlobContainerClient(blobContainerName));
+        }
+    }
+
+    builder.Services.AddSingleton<SearchIndexService>();
+    builder.Services.AddSingleton<DocumentIngestionService>();
+
+    // Replace in-memory implementations with Azure-backed ones
+    builder.Services.AddSingleton<IChatOrchestrator, RagChatOrchestrator>();
+    builder.Services.AddSingleton<IContentService>(sp => sp.GetRequiredService<DocumentIngestionService>());
+}
+
+builder.Services.AddSingleton<IReviewService, InMemoryReviewService>();
 builder.Services.AddProblemDetails();
 builder.Services.AddEndpointsApiExplorer();
 
@@ -113,6 +174,45 @@ app.MapPost("/api/chat/query", async (ChatQueryRequest request, IChatOrchestrato
 })
     .RequireRateLimiting("public-chat");
 
+app.MapPost("/api/chat/stream", async (ChatQueryRequest request, IChatOrchestrator orchestrator, HttpContext httpContext) =>
+{
+    if (string.IsNullOrWhiteSpace(request.Question))
+    {
+        httpContext.Response.StatusCode = 400;
+        return;
+    }
+
+    if (request.Question.Length > maxQuestionLength)
+    {
+        httpContext.Response.StatusCode = 400;
+        return;
+    }
+
+    if (allowedLocales.Length > 0 && !allowedLocales.Contains(request.Locale, StringComparer.OrdinalIgnoreCase))
+    {
+        httpContext.Response.StatusCode = 400;
+        return;
+    }
+
+    httpContext.Response.ContentType = "text/event-stream";
+    httpContext.Response.Headers.CacheControl = "no-cache";
+    httpContext.Response.Headers.Connection = "keep-alive";
+
+    var cancellationToken = httpContext.RequestAborted;
+
+    await foreach (var evt in orchestrator.QueryStreamAsync(request, cancellationToken))
+    {
+        var json = System.Text.Json.JsonSerializer.Serialize(evt, new System.Text.Json.JsonSerializerOptions
+        {
+            PropertyNamingPolicy = System.Text.Json.JsonNamingPolicy.CamelCase,
+            DefaultIgnoreCondition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull
+        });
+        await httpContext.Response.WriteAsync($"data: {json}\n\n", cancellationToken);
+        await httpContext.Response.Body.FlushAsync(cancellationToken);
+    }
+})
+    .RequireRateLimiting("public-chat");
+
 app.MapPost("/api/content/upload", async (UploadContentRequest request, IContentService contentService, CancellationToken cancellationToken) =>
 {
     if (string.IsNullOrWhiteSpace(request.Title) || string.IsNullOrWhiteSpace(request.SourceType))
@@ -151,6 +251,64 @@ app.MapGet("/api/review/items", async (IReviewService reviewService, Cancellatio
 {
     var response = await reviewService.GetItemsAsync(cancellationToken);
     return Results.Ok(response);
+});
+
+app.MapPost("/api/content/ingest", async (IngestRequest request, DocumentIngestionService? ingestionService, CancellationToken cancellationToken) =>
+{
+    if (ingestionService is null)
+    {
+        return Results.Problem("Document ingestion is not configured. Azure endpoints are required.", statusCode: 503);
+    }
+
+    if (string.IsNullOrWhiteSpace(request.BlobName) || string.IsNullOrWhiteSpace(request.Title))
+    {
+        return Results.ValidationProblem(new Dictionary<string, string[]>
+        {
+            ["request"] = ["BlobName and Title are required."]
+        });
+    }
+
+    var logger = app.Services.GetRequiredService<ILoggerFactory>().CreateLogger("Ingestion");
+    var blobName = request.BlobName;
+    var title = request.Title;
+    var language = request.Language ?? "nl";
+
+    _ = Task.Run(async () =>
+    {
+        try
+        {
+            await ingestionService.IngestPdfFromBlobAsync(blobName, title, language, CancellationToken.None);
+            logger.LogInformation("Background ingestion completed for {BlobName}", blobName);
+        }
+        catch (Exception ex)
+        {
+            logger.LogError(ex, "Background ingestion failed for {BlobName}", blobName);
+        }
+    });
+
+    return Results.Accepted(value: new { status = "ingestion-started", blobName = request.BlobName });
+});
+
+app.MapPost("/api/admin/ensure-index", async (SearchIndexService? searchIndexService, CancellationToken cancellationToken) =>
+{
+    if (searchIndexService is null)
+    {
+        return Results.Problem("Search index service is not configured.", statusCode: 503);
+    }
+
+    await searchIndexService.EnsureIndexExistsAsync(cancellationToken);
+    return Results.Ok(new { status = "index-ready" });
+});
+
+app.MapPost("/api/admin/recreate-index", async (SearchIndexService? searchIndexService, CancellationToken cancellationToken) =>
+{
+    if (searchIndexService is null)
+    {
+        return Results.Problem("Search index service is not configured.", statusCode: 503);
+    }
+
+    await searchIndexService.RecreateIndexAsync(cancellationToken);
+    return Results.Ok(new { status = "index-recreated" });
 });
 
 app.Run();

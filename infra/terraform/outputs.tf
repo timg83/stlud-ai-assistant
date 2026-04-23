@@ -10,7 +10,7 @@ output "backend_app_name" {
 
 output "backend_url" {
   description = "Public HTTPS URL of the backend container app."
-  value       = "https://${azurerm_container_app.backend.latest_revision_fqdn}"
+  value       = "https://${azurerm_container_app.backend.ingress[0].fqdn}"
 }
 
 output "frontend_url" {

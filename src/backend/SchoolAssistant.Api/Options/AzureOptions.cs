@@ -22,6 +22,8 @@ public sealed class CosmosDbOptions
 public sealed class BlobStorageOptions
 {
     public string ContainerName { get; set; } = string.Empty;
+    public string AccountName { get; set; } = string.Empty;
+    public string ConnectionString { get; set; } = string.Empty;
 }
 
 public sealed class RateLimitingOptions

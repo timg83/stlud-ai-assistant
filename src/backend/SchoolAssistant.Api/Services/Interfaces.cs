@@ -5,6 +5,7 @@ namespace SchoolAssistant.Api.Services;
 public interface IChatOrchestrator
 {
     Task<ChatQueryResponse> QueryAsync(ChatQueryRequest request, CancellationToken cancellationToken);
+    IAsyncEnumerable<StreamChatEvent> QueryStreamAsync(ChatQueryRequest request, CancellationToken cancellationToken);
 }
 
 public interface IContentService

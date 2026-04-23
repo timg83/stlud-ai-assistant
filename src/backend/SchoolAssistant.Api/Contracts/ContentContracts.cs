@@ -16,3 +16,5 @@ public sealed record ReindexContentRequest(string? SourceId, string? StatusFilte
 public sealed record ReindexContentResponse(string JobId, string Status);
 
 public sealed record ReviewItemResponse(string ReviewId, string Category, string Status, string Summary);
+
+public sealed record IngestRequest(string BlobName, string Title, string? Language);
