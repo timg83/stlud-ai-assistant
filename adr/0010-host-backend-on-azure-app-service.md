@@ -2,7 +2,7 @@
 
 ## Status
 
-Accepted
+Superseded by [ADR 0016](0016-host-runtime-on-container-apps-and-static-website.md)
 
 ## Context
 

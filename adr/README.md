@@ -18,3 +18,4 @@ Deze map bevat de Architecture Decision Records voor alle expliciet gekozen arch
 14. [0014-support-dutch-and-english-in-mvp.md](0014-support-dutch-and-english-in-mvp.md)
 15. [0015-use-key-vault-managed-identity-and-application-insights.md](0015-use-key-vault-managed-identity-and-application-insights.md)
 16. [0016-host-runtime-on-container-apps-and-static-website.md](0016-host-runtime-on-container-apps-and-static-website.md)
+17. [0017-use-azure-ai-foundry-for-ai-platform.md](0017-use-azure-ai-foundry-for-ai-platform.md)

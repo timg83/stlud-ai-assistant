@@ -1,19 +1,20 @@
 # School AI Assistent
 
-Deze repository bevat de eerste implementatieskeleton voor een brongecontroleerde AI-assistent voor een schoolwebsite.
+Deze repository bevat een brongecontroleerde AI-assistent voor een schoolwebsite, gebouwd op Azure AI Foundry.
 
 ## Structuur
 
 - `adr/` architectuurbeslissingen
 - `docs/` ontwerpdocumentatie
-- `src/backend/SchoolAssistant.Api/` ASP.NET Core API
+- `src/backend/SchoolAssistant.Api/` ASP.NET Core API (proxy, rate limiting, RAG-orchestratie)
 - `src/frontend/chat-widget/` React widget
-- `infra/terraform/` infrastructuur-skeleton
+- `infra/terraform/` volledige Azure-infrastructuur (AI Foundry, Container Apps, AI Search, Cosmos DB, etc.)
 - `team/` rolprompts, werkafspraken en checklists
+- `scripts/` lokale dev- en deployment-scripts
 
 ## Status
 
-Dit is een eerste end-to-end skeleton. Azure-integraties zijn als interfaces en configuratiepunten opgenomen, maar nog niet gekoppeld aan echte resources.
+Walking skeleton is operationeel. De backend draait op Azure Container Apps, de frontend als static website op Azure Storage. Azure AI Foundry (hub, project, AI Services en modeldeployments) wordt volledig via Terraform geprovisioned. Service-implementaties zijn nog placeholders — de interfaces en configuratiepunten staan klaar voor echte Azure SDK-integratie.
 
 ## Devcontainer
 

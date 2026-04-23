@@ -2,7 +2,7 @@
 
 ## Status
 
-Accepted
+Superseded by [ADR 0017](0017-use-azure-ai-foundry-for-ai-platform.md)
 
 ## Context
 
