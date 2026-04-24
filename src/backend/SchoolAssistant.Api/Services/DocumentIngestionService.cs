@@ -20,6 +20,7 @@ public sealed class DocumentIngestionService : IContentService
 
     private const int ChunkSize = 800;
     private const int ChunkOverlap = 100;
+    private const long MaxBlobSizeBytes = 50 * 1024 * 1024; // 50 MB
 
     public DocumentIngestionService(
         BlobContainerClient blobContainerClient,
@@ -57,10 +58,14 @@ public sealed class DocumentIngestionService : IContentService
         await _searchIndexService.EnsureIndexExistsAsync(cancellationToken);
 
         var blobClient = _blobContainerClient.GetBlobClient(blobName);
-        var downloadResponse = await blobClient.DownloadContentAsync(cancellationToken);
-        var pdfBytes = downloadResponse.Value.Content.ToArray();
 
-        var text = ExtractTextFromPdf(pdfBytes);
+        var properties = await blobClient.GetPropertiesAsync(cancellationToken: cancellationToken);
+        if (properties.Value.ContentLength > MaxBlobSizeBytes)
+            throw new InvalidOperationException($"Blob '{blobName}' exceeds the maximum allowed size of {MaxBlobSizeBytes / (1024 * 1024)} MB.");
+
+        var downloadResponse = await blobClient.DownloadStreamingAsync(cancellationToken: cancellationToken);
+        await using var pdfStream = downloadResponse.Value.Content;
+        var text = ExtractTextFromPdf(pdfStream);
         _logger.LogInformation("Extracted {Length} characters from {BlobName}", text.Length, blobName);
 
         var chunks = ChunkText(text);
@@ -124,9 +129,9 @@ public sealed class DocumentIngestionService : IContentService
         _logger.LogInformation("Indexed {Count} chunks for {BlobName} with sourceId {SourceId}", searchDocuments.Count, blobName, sourceId);
     }
 
-    private static string ExtractTextFromPdf(byte[] pdfBytes)
+    private static string ExtractTextFromPdf(Stream pdfStream)
     {
-        using var document = UglyToad.PdfPig.PdfDocument.Open(pdfBytes);
+        using var document = UglyToad.PdfPig.PdfDocument.Open(pdfStream);
         var sb = new StringBuilder();
 
         foreach (var page in document.GetPages())

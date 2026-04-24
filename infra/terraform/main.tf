@@ -450,6 +450,6 @@ resource "azurerm_role_assignment" "app_search_service_contributor" {
 
 resource "azurerm_role_assignment" "app_cosmosdb_contributor" {
   scope                = azurerm_cosmosdb_account.main.id
-  role_definition_name = "DocumentDB Account Contributor"
+  role_definition_name = "Cosmos DB Built-in Data Contributor"
   principal_id         = azurerm_container_app.backend.identity[0].principal_id
 }

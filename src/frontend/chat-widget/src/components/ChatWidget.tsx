@@ -19,6 +19,7 @@ type ChatEscalation = {
 };
 
 type Message = {
+  id?: string;
   role: "user" | "assistant";
   text: string;
   sources?: ChatSource[];
@@ -60,12 +61,16 @@ export function ChatWidget({ apiBaseUrl }: ChatWidgetProps) {
     const currentQuestion = normalizedQuestion;
     setError(null);
     setIsSubmitting(true);
-    setMessages((prev) => [...prev, { role: "user", text: currentQuestion }]);
     setQuestion("");
 
-    // Add placeholder assistant message for streaming
-    const assistantIndex = messages.length + 1;
-    setMessages((prev) => [...prev, { role: "assistant", text: "" }]);
+    // Add the user message and an assistant placeholder in a single update so
+    // the assistant ID is always computed from the same state snapshot.
+    const assistantId = crypto.randomUUID();
+    setMessages((prev) => [
+      ...prev,
+      { role: "user", text: currentQuestion },
+      { id: assistantId, role: "assistant", text: "" },
+    ]);
 
     try {
       const response = await fetch(`${apiBaseUrl}/api/chat/stream`, {
@@ -106,41 +111,29 @@ export function ChatWidget({ apiBaseUrl }: ChatWidgetProps) {
           }
 
           if (evt.type === "delta" && evt.delta) {
-            setMessages((prev) => {
-              const updated = [...prev];
-              const msg = updated[assistantIndex];
-              if (msg) {
-                updated[assistantIndex] = {
-                  ...msg,
-                  text: msg.text + evt.delta,
-                };
-              }
-              return updated;
-            });
+            setMessages((prev) =>
+              prev.map((m) =>
+                m.id === assistantId ? { ...m, text: m.text + evt.delta } : m,
+              ),
+            );
           } else if (evt.type === "done") {
-            setMessages((prev) => {
-              const updated = [...prev];
-              const msg = updated[assistantIndex];
-              if (msg) {
-                updated[assistantIndex] = {
-                  ...msg,
-                  sources: evt.sources || [],
-                  escalation: evt.escalation || null,
-                };
-              }
-              return updated;
-            });
+            setMessages((prev) =>
+              prev.map((m) =>
+                m.id === assistantId
+                  ? { ...m, sources: evt.sources || [], escalation: evt.escalation || null }
+                  : m,
+              ),
+            );
           }
         }
       }
     } catch (submissionError) {
       setMessages((prev) => {
-        const updated = [...prev];
-        const msg = updated[assistantIndex];
+        const msg = prev.find((m) => m.id === assistantId);
         if (msg && !msg.text) {
-          return updated.filter((_, i) => i !== assistantIndex);
+          return prev.filter((m) => m.id !== assistantId);
         }
-        return updated;
+        return prev;
       });
       setError(
         submissionError instanceof Error
