@@ -174,9 +174,9 @@ export function ChatWidget({ apiBaseUrl }: ChatWidgetProps) {
                 className="typing-indicator"
                 aria-label="Antwoord wordt geladen"
               >
-                <span></span>
-                <span></span>
-                <span></span>
+                <span aria-hidden="true" role="presentation"></span>
+                <span aria-hidden="true" role="presentation"></span>
+                <span aria-hidden="true" role="presentation"></span>
               </div>
             ) : message.role === "assistant" ? (
               <div className="markdown-body">
