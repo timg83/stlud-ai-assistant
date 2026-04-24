@@ -13,12 +13,14 @@ public sealed class SearchIndexService
     private readonly SearchIndexClient _indexClient;
     private readonly SearchClient _searchClient;
     private readonly string _indexName;
+    private readonly int _vectorSearchDimensions;
 
-    public SearchIndexService(SearchIndexClient indexClient, SearchClient searchClient, IOptions<AzureAiSearchOptions> options)
+    public SearchIndexService(SearchIndexClient indexClient, SearchClient searchClient, IOptions<AzureAiSearchOptions> searchOptions, IOptions<AzureOpenAiOptions> openAiOptions)
     {
         _indexClient = indexClient;
         _searchClient = searchClient;
-        _indexName = options.Value.IndexName;
+        _indexName = searchOptions.Value.IndexName;
+        _vectorSearchDimensions = openAiOptions.Value.EmbeddingDimensions;
     }
 
     public async Task EnsureIndexExistsAsync(CancellationToken cancellationToken = default)
@@ -37,7 +39,7 @@ public sealed class SearchIndexService
                 new SearchField("contentVector", SearchFieldDataType.Collection(SearchFieldDataType.Single))
                 {
                     IsSearchable = true,
-                    VectorSearchDimensions = 3072,
+                    VectorSearchDimensions = _vectorSearchDimensions,
                     VectorSearchProfileName = "vector-profile"
                 }
             },

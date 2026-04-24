@@ -5,6 +5,7 @@ public sealed class AzureOpenAiOptions
     public string Endpoint { get; set; } = string.Empty;
     public string ChatDeployment { get; set; } = string.Empty;
     public string EmbeddingDeployment { get; set; } = string.Empty;
+    public int EmbeddingDimensions { get; set; } = 3072;
 }
 
 public sealed class AzureAiSearchOptions
