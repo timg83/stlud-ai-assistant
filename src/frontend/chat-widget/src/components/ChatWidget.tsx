@@ -98,7 +98,12 @@ export function ChatWidget({ apiBaseUrl }: ChatWidgetProps) {
           const jsonStr = line.slice(6).trim();
           if (!jsonStr) continue;
 
-          const evt = JSON.parse(jsonStr);
+          let evt;
+          try {
+            evt = JSON.parse(jsonStr);
+          } catch {
+            throw new Error(DEFAULT_ERROR_MESSAGE);
+          }
 
           if (evt.type === "delta" && evt.delta) {
             setMessages((prev) => {
