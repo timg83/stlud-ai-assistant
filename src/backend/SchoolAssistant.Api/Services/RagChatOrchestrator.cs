@@ -188,6 +188,10 @@ public sealed class RagChatOrchestrator : IChatOrchestrator
         if (searchErrorMessage is not null)
         {
             yield return new StreamChatEvent("delta", Delta: searchErrorMessage);
+            if (searchErrorDoneEvent is not null)
+            {
+                yield return searchErrorDoneEvent;
+            }
             yield break;
         }
 
