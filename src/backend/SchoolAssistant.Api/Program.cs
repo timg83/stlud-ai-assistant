@@ -40,6 +40,7 @@ var widgetSecuritySection = builder.Configuration.GetSection("WidgetSecurity");
 var allowedOrigins = ReadIndexedSectionValues(widgetSecuritySection, "AllowedOrigins", []);
 var allowedLocales = ReadIndexedSectionValues(widgetSecuritySection, "AllowedLocales", ["nl-NL", "en-US", "en-GB"]);
 var maxQuestionLength = widgetSecuritySection.GetValue<int>("MaxQuestionLength", 1000);
+var adminApiKey = builder.Configuration["Admin:ApiKey"];
 
 builder.Services.AddRateLimiter(options =>
 {
@@ -116,6 +117,8 @@ if (!string.IsNullOrWhiteSpace(azureOpenAiEndpoint) && !string.IsNullOrWhiteSpac
 
     builder.Services.AddSingleton<SearchIndexService>();
     builder.Services.AddSingleton<DocumentIngestionService>();
+    builder.Services.AddSingleton<IngestionQueue>();
+    builder.Services.AddHostedService<IngestionBackgroundService>();
 
     // Replace in-memory implementations with Azure-backed ones
     builder.Services.AddSingleton<IChatOrchestrator, RagChatOrchestrator>();
@@ -127,6 +130,19 @@ builder.Services.AddProblemDetails();
 builder.Services.AddEndpointsApiExplorer();
 
 var app = builder.Build();
+
+// Filter that enforces API key authentication for admin/ingest endpoints
+async ValueTask<object?> RequireAdminApiKey(EndpointFilterInvocationContext ctx, EndpointFilterDelegate next)
+{
+    if (string.IsNullOrWhiteSpace(adminApiKey))
+        return Results.Problem("Admin API key is not configured on the server.", statusCode: StatusCodes.Status503ServiceUnavailable);
+
+    if (!ctx.HttpContext.Request.Headers.TryGetValue("X-Admin-Api-Key", out var providedKey) ||
+        !string.Equals(providedKey, adminApiKey, StringComparison.Ordinal))
+        return Results.Problem("Unauthorized.", statusCode: StatusCodes.Status401Unauthorized);
+
+    return await next(ctx);
+}
 
 app.UseExceptionHandler();
 app.Use(async (context, next) =>
@@ -252,9 +268,9 @@ app.MapGet("/api/review/items", async (IReviewService reviewService, Cancellatio
     return Results.Ok(response);
 });
 
-app.MapPost("/api/content/ingest", async (IngestRequest request, DocumentIngestionService? ingestionService, CancellationToken cancellationToken) =>
+app.MapPost("/api/content/ingest", async (IngestRequest request, IngestionQueue? ingestionQueue, CancellationToken cancellationToken) =>
 {
-    if (ingestionService is null)
+    if (ingestionQueue is null)
     {
         return Results.Problem("Document ingestion is not configured. Azure endpoints are required.", statusCode: 503);
     }
@@ -267,26 +283,14 @@ app.MapPost("/api/content/ingest", async (IngestRequest request, DocumentIngesti
         });
     }
 
-    var logger = app.Services.GetRequiredService<ILoggerFactory>().CreateLogger("Ingestion");
     var blobName = request.BlobName;
     var title = request.Title;
     var language = request.Language ?? "nl";
 
-    _ = Task.Run(async () =>
-    {
-        try
-        {
-            await ingestionService.IngestPdfFromBlobAsync(blobName, title, language, CancellationToken.None);
-            logger.LogInformation("Background ingestion completed for {BlobName}", blobName);
-        }
-        catch (Exception ex)
-        {
-            logger.LogError(ex, "Background ingestion failed for {BlobName}", blobName);
-        }
-    });
-
-    return Results.Accepted(value: new { status = "ingestion-started", blobName = request.BlobName });
-});
+    await ingestionQueue.Writer.WriteAsync(new IngestionWorkItem(blobName, title, language), cancellationToken);
+    return Results.Accepted(value: new { status = "ingestion-queued", blobName = request.BlobName });
+})
+    .AddEndpointFilter(RequireAdminApiKey);
 
 app.MapPost("/api/admin/ensure-index", async (SearchIndexService? searchIndexService, CancellationToken cancellationToken) =>
 {
@@ -297,7 +301,8 @@ app.MapPost("/api/admin/ensure-index", async (SearchIndexService? searchIndexSer
 
     await searchIndexService.EnsureIndexExistsAsync(cancellationToken);
     return Results.Ok(new { status = "index-ready" });
-});
+})
+    .AddEndpointFilter(RequireAdminApiKey);
 
 app.MapPost("/api/admin/recreate-index", async (SearchIndexService? searchIndexService, CancellationToken cancellationToken) =>
 {
@@ -308,6 +313,7 @@ app.MapPost("/api/admin/recreate-index", async (SearchIndexService? searchIndexS
 
     await searchIndexService.RecreateIndexAsync(cancellationToken);
     return Results.Ok(new { status = "index-recreated" });
-});
+})
+    .AddEndpointFilter(RequireAdminApiKey);
 
 app.Run();

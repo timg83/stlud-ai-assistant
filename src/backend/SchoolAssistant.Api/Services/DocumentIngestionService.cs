@@ -93,9 +93,20 @@ public sealed class DocumentIngestionService : IContentService
                     embeddingResult = result.Value;
                     break;
                 }
-                catch (ClientResultException ex) when (ex.Message.Contains("429"))
+                catch (ClientResultException ex) when (ex.Status == 429)
                 {
-                    var delay = TimeSpan.FromSeconds(Math.Pow(2, attempt) * 30);
+                    TimeSpan delay;
+                    var rawResponse = ex.GetRawResponse();
+                    if (rawResponse is not null &&
+                        rawResponse.Headers.TryGetValue("Retry-After", out var retryAfterStr) &&
+                        int.TryParse(retryAfterStr, out var retryAfterSeconds))
+                    {
+                        delay = TimeSpan.FromSeconds(retryAfterSeconds);
+                    }
+                    else
+                    {
+                        delay = TimeSpan.FromSeconds(Math.Pow(2, attempt) * 30);
+                    }
                     _logger.LogWarning("Rate limited on embedding batch {Batch}, retrying in {Delay}s (attempt {Attempt})", batchStart / batchSize, delay.TotalSeconds, attempt + 1);
                     await Task.Delay(delay, cancellationToken);
                 }

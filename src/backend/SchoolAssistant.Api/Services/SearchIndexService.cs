@@ -61,7 +61,8 @@ public sealed class SearchIndexService
 
     public async Task DeleteBySourceIdAsync(string sourceId, CancellationToken cancellationToken = default)
     {
-        var options = new SearchOptions { Filter = $"sourceId eq '{sourceId}'", Select = { "id" }, Size = 1000 };
+        var escapedSourceId = sourceId.Replace("'", "''");
+        var options = new SearchOptions { Filter = $"sourceId eq '{escapedSourceId}'", Select = { "id" }, Size = 1000 };
         var response = await _searchClient.SearchAsync<SearchDocument>("*", options, cancellationToken);
         var ids = new List<string>();
         await foreach (var result in response.Value.GetResultsAsync())
