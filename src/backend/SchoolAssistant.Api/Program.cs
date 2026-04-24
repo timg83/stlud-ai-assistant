@@ -68,7 +68,6 @@ builder.Services.AddCors(options =>
 
 builder.Services.AddSingleton<IChatOrchestrator, InMemoryChatOrchestrator>();
 builder.Services.AddSingleton<IContentService, InMemoryContentService>();
-builder.Services.AddSingleton<IReviewService, InMemoryReviewService>();
 
 // --- Azure SDK clients (used when endpoints are configured) ---
 var azureOpenAiEndpoint = builder.Configuration["AzureOpenAi:Endpoint"];
