@@ -109,8 +109,8 @@ if (!string.IsNullOrWhiteSpace(azureOpenAiEndpoint) && !string.IsNullOrWhiteSpac
         }
         else
         {
-            // Fallback: try to derive from AzureAiSearch or use environment
-            builder.Services.AddSingleton(_ => new BlobServiceClient("UseDevelopmentStorage=true").GetBlobContainerClient(blobContainerName));
+            throw new InvalidOperationException(
+                "Blob Storage is not configured. Set either the blob storage connection string or the storage account name so the application can create the blob container client at startup.");
         }
     }
 
