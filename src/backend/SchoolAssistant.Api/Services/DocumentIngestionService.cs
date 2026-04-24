@@ -113,7 +113,6 @@ public sealed class DocumentIngestionService : IContentService
                     ["chunkText"] = chunk.Text,
                     ["language"] = language,
                     ["chunkIndex"] = chunkIndex,
-                    ["pageNumber"] = chunk.Page,
                     ["contentVector"] = embedding.ToFloats().ToArray()
                 };
 
