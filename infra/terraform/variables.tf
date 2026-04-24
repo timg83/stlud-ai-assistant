@@ -149,6 +149,12 @@ variable "ai_services_sku" {
   default     = "S0"
 }
 
+variable "ai_services_location" {
+  type        = string
+  description = "Azure region for AI Services (OpenAI models). Some models are only available in specific regions."
+  default     = "swedencentral"
+}
+
 variable "chat_model_deployment_name" {
   type        = string
   description = "Deployment name for the chat model in AI Services."
@@ -173,6 +179,12 @@ variable "chat_model_capacity" {
   default     = 10
 }
 
+variable "chat_model_sku" {
+  type        = string
+  description = "SKU name for the chat model deployment."
+  default     = "Standard"
+}
+
 variable "embedding_model_deployment_name" {
   type        = string
   description = "Deployment name for the embedding model in AI Services."
@@ -195,6 +207,12 @@ variable "embedding_model_capacity" {
   type        = number
   description = "Token-per-minute capacity (in thousands) for the embedding model."
   default     = 10
+}
+
+variable "embedding_model_sku" {
+  type        = string
+  description = "SKU name for the embedding model deployment."
+  default     = "Standard"
 }
 
 variable "allowed_origins" {

@@ -144,6 +144,7 @@ resource "azurerm_search_service" "main" {
   partition_count               = var.search_partition_count
   local_authentication_enabled  = true
   public_network_access_enabled = true
+  authentication_failure_mode   = "http401WithBearerChallenge"
   tags                          = local.tags
 }
 
@@ -166,7 +167,7 @@ resource "azurerm_key_vault" "main" {
 
 resource "azurerm_ai_services" "main" {
   name                         = local.ai_services_name
-  location                     = azurerm_resource_group.main.location
+  location                     = var.ai_services_location
   resource_group_name          = azurerm_resource_group.main.name
   sku_name                     = var.ai_services_sku
   custom_subdomain_name        = local.ai_services_name
@@ -213,7 +214,7 @@ resource "azurerm_cognitive_deployment" "chat" {
   }
 
   sku {
-    name     = "Standard"
+    name     = var.chat_model_sku
     capacity = var.chat_model_capacity
   }
 }
@@ -229,7 +230,7 @@ resource "azurerm_cognitive_deployment" "embedding" {
   }
 
   sku {
-    name     = "Standard"
+    name     = var.embedding_model_sku
     capacity = var.embedding_model_capacity
   }
 }
@@ -362,6 +363,11 @@ resource "azurerm_container_app" "backend" {
       }
 
       env {
+        name  = "BlobStorage__AccountName"
+        value = azurerm_storage_account.main.name
+      }
+
+      env {
         name  = "RateLimiting__PermitLimit"
         value = tostring(var.rate_limit_permit_limit)
       }
@@ -427,6 +433,18 @@ resource "azurerm_role_assignment" "app_cognitive_services_user" {
 resource "azurerm_role_assignment" "app_search_index_reader" {
   scope                = azurerm_search_service.main.id
   role_definition_name = "Search Index Data Reader"
+  principal_id         = azurerm_container_app.backend.identity[0].principal_id
+}
+
+resource "azurerm_role_assignment" "app_search_index_contributor" {
+  scope                = azurerm_search_service.main.id
+  role_definition_name = "Search Index Data Contributor"
+  principal_id         = azurerm_container_app.backend.identity[0].principal_id
+}
+
+resource "azurerm_role_assignment" "app_search_service_contributor" {
+  scope                = azurerm_search_service.main.id
+  role_definition_name = "Search Service Contributor"
   principal_id         = azurerm_container_app.backend.identity[0].principal_id
 }
 

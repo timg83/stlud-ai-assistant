@@ -24,6 +24,16 @@ public sealed class InMemoryChatOrchestrator : IChatOrchestrator
 
         return Task.FromResult(response);
     }
+
+    public async IAsyncEnumerable<StreamChatEvent> QueryStreamAsync(
+        ChatQueryRequest request,
+        [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken cancellationToken)
+    {
+        var result = await QueryAsync(request, cancellationToken);
+        yield return new StreamChatEvent("delta", Delta: result.AnswerText);
+        yield return new StreamChatEvent("done", Confidence: result.Confidence, Sources: result.Sources,
+            Escalation: result.Escalation, TraceId: result.TraceId);
+    }
 }
 
 public sealed class InMemoryContentService : IContentService

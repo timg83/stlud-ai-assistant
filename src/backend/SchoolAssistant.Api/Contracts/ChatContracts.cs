@@ -12,3 +12,6 @@ public sealed record ChatQueryResponse(
     IReadOnlyList<ChatSource> Sources,
     ChatEscalation? Escalation,
     string TraceId);
+
+public sealed record StreamChatEvent(string Type, string? Delta = null, string? Confidence = null,
+    IReadOnlyList<ChatSource>? Sources = null, ChatEscalation? Escalation = null, string? TraceId = null);

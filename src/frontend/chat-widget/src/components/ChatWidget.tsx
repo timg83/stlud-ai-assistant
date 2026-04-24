@@ -1,4 +1,5 @@
-import { FormEvent, useState } from "react";
+import { FormEvent, useEffect, useRef, useState } from "react";
+import Markdown from "react-markdown";
 
 export const MAX_QUESTION_LENGTH = 1000;
 const CONTROL_CHARACTERS_PATTERN = /[\u0000-\u001F\u007F]/g;
@@ -17,15 +18,8 @@ type ChatEscalation = {
   contactUrl?: string | null;
 };
 
-type ChatResponse = {
-  answerText: string;
-  confidence: string;
-  sources: ChatSource[];
-  escalation?: ChatEscalation | null;
-  traceId: string;
-};
-
 type Message = {
+  id?: string;
   role: "user" | "assistant";
   text: string;
   sources?: ChatSource[];
@@ -41,6 +35,13 @@ export function ChatWidget({ apiBaseUrl }: ChatWidgetProps) {
   const [messages, setMessages] = useState<Message[]>([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const threadRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (threadRef.current) {
+      threadRef.current.scrollTop = threadRef.current.scrollHeight;
+    }
+  }, [messages]);
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -60,36 +61,80 @@ export function ChatWidget({ apiBaseUrl }: ChatWidgetProps) {
     const currentQuestion = normalizedQuestion;
     setError(null);
     setIsSubmitting(true);
-    setMessages((prev) => [...prev, { role: "user", text: currentQuestion }]);
     setQuestion("");
 
+    // Add the user message and an assistant placeholder in a single update so
+    // the assistant ID is always computed from the same state snapshot.
+    const assistantId = crypto.randomUUID();
+    setMessages((prev) => [
+      ...prev,
+      { role: "user", text: currentQuestion },
+      { id: assistantId, role: "assistant", text: "" },
+    ]);
+
     try {
-      const response = await fetch(`${apiBaseUrl}/api/chat/query`, {
+      const response = await fetch(`${apiBaseUrl}/api/chat/stream`, {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           question: currentQuestion,
           locale: navigator.language || "nl-NL",
         }),
       });
 
-      if (!response.ok) {
+      if (!response.ok || !response.body) {
         throw new Error(DEFAULT_ERROR_MESSAGE);
       }
 
-      const data = (await response.json()) as ChatResponse;
-      setMessages((prev) => [
-        ...prev,
-        {
-          role: "assistant",
-          text: data.answerText,
-          sources: data.sources,
-          escalation: data.escalation,
-        },
-      ]);
+      const reader = response.body.getReader();
+      const decoder = new TextDecoder();
+      let buffer = "";
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+
+        buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split("\n");
+        buffer = lines.pop() || "";
+
+        for (const line of lines) {
+          if (!line.startsWith("data: ")) continue;
+          const jsonStr = line.slice(6).trim();
+          if (!jsonStr) continue;
+
+          let evt;
+          try {
+            evt = JSON.parse(jsonStr);
+          } catch {
+            throw new Error(DEFAULT_ERROR_MESSAGE);
+          }
+
+          if (evt.type === "delta" && evt.delta) {
+            setMessages((prev) =>
+              prev.map((m) =>
+                m.id === assistantId ? { ...m, text: m.text + evt.delta } : m,
+              ),
+            );
+          } else if (evt.type === "done") {
+            setMessages((prev) =>
+              prev.map((m) =>
+                m.id === assistantId
+                  ? { ...m, sources: evt.sources || [], escalation: evt.escalation || null }
+                  : m,
+              ),
+            );
+          }
+        }
+      }
     } catch (submissionError) {
+      setMessages((prev) => {
+        const msg = prev.find((m) => m.id === assistantId);
+        if (msg && !msg.text) {
+          return prev.filter((m) => m.id !== assistantId);
+        }
+        return prev;
+      });
       setError(
         submissionError instanceof Error
           ? submissionError.message
@@ -111,7 +156,7 @@ export function ChatWidget({ apiBaseUrl }: ChatWidgetProps) {
         </p>
       </header>
 
-      <div className="chat-thread">
+      <div className="chat-thread" ref={threadRef}>
         {messages.length === 0 ? (
           <p className="empty-state">
             Vraag bijvoorbeeld naar schooltijden, verlof of het schoolreglement.
@@ -122,7 +167,22 @@ export function ChatWidget({ apiBaseUrl }: ChatWidgetProps) {
             key={`${message.role}-${index}`}
             className={`message message-${message.role}`}
           >
-            <p>{message.text}</p>
+            {message.role === "assistant" && !message.text && isSubmitting ? (
+              <div
+                className="typing-indicator"
+                aria-label="Antwoord wordt geladen"
+              >
+                <span aria-hidden="true" role="presentation"></span>
+                <span aria-hidden="true" role="presentation"></span>
+                <span aria-hidden="true" role="presentation"></span>
+              </div>
+            ) : message.role === "assistant" ? (
+              <div className="markdown-body">
+                <Markdown>{message.text}</Markdown>
+              </div>
+            ) : (
+              <p>{message.text}</p>
+            )}
             {message.sources && message.sources.length > 0 ? (
               <ul className="source-list">
                 {message.sources.map((source) => (
@@ -165,12 +225,18 @@ export function ChatWidget({ apiBaseUrl }: ChatWidgetProps) {
           rows={4}
           value={question}
           onChange={(event) => setQuestion(event.target.value)}
+          onKeyDown={(event) => {
+            if (event.key === "Enter" && !event.shiftKey) {
+              event.preventDefault();
+              event.currentTarget.form?.requestSubmit();
+            }
+          }}
           placeholder="Waar vind ik informatie over schooltijden of verlof?"
           disabled={isSubmitting}
           maxLength={MAX_QUESTION_LENGTH}
         />
         <button type="submit" disabled={isSubmitting}>
-          {isSubmitting ? "Versturen..." : "Verstuur vraag"}
+          {isSubmitting ? "Bezig..." : "Verstuur vraag"}
         </button>
       </form>
 
