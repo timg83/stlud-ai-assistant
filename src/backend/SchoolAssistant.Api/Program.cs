@@ -1,3 +1,5 @@
+using System.Security.Cryptography;
+using System.Text;
 using System.Threading.RateLimiting;
 using Azure;
 using Azure.AI.OpenAI;
@@ -137,8 +139,13 @@ async ValueTask<object?> RequireAdminApiKey(EndpointFilterInvocationContext ctx,
     if (string.IsNullOrWhiteSpace(adminApiKey))
         return Results.Problem("Admin API key is not configured on the server.", statusCode: StatusCodes.Status503ServiceUnavailable);
 
-    if (!ctx.HttpContext.Request.Headers.TryGetValue("X-Admin-Api-Key", out var providedKey) ||
-        !string.Equals(providedKey, adminApiKey, StringComparison.Ordinal))
+    if (!ctx.HttpContext.Request.Headers.TryGetValue("X-Admin-Api-Key", out var providedKey))
+        return Results.Problem("Unauthorized.", statusCode: StatusCodes.Status401Unauthorized);
+
+    // Use SHA-256 + constant-time comparison to prevent timing attacks and length side-channels.
+    var adminKeyHash = SHA256.HashData(Encoding.UTF8.GetBytes(adminApiKey));
+    var providedKeyHash = SHA256.HashData(Encoding.UTF8.GetBytes(providedKey.ToString() ?? string.Empty));
+    if (!CryptographicOperations.FixedTimeEquals(adminKeyHash, providedKeyHash))
         return Results.Problem("Unauthorized.", statusCode: StatusCodes.Status401Unauthorized);
 
     return await next(ctx);

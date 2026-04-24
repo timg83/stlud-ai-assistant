@@ -97,6 +97,7 @@ public sealed class DocumentIngestionService : IContentService
                 {
                     TimeSpan delay;
                     var rawResponse = ex.GetRawResponse();
+                    // Note: Retry-After can also be an HTTP-date; we only handle the integer (seconds) form here.
                     if (rawResponse is not null &&
                         rawResponse.Headers.TryGetValue("Retry-After", out var retryAfterStr) &&
                         int.TryParse(retryAfterStr, out var retryAfterSeconds))
